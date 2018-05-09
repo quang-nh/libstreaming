@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd">
+
+	<!-- postgresデータベースにセッションのビーンを宣言する。 -->
+	<bean id="sessionFactory"
+		class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+
+		<property name="annotatedClasses">
+			<list>
+				<value>jp.co.sec.disasterprevention.operationui.entity.TUserInterfaceStates</value>
+			</list>
+		</property>
+
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">org.hibernate.dialect.PostgreSQLDialect</prop>
+				<prop key="hibernate.show_sql">false</prop>
+				<prop key="hibernate.format_sql">false</prop>
+			</props>
+		</property>
+	</bean>
+
+	<bean id="transactionManager"
+		class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+	
+	<bean id="taskExecutor"
+		class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+		<property name="corePoolSize" value="22" />
+		<property name="maxPoolSize" value="26" />
+		<property name="queueCapacity" value="30" />
+	</bean>
+
+    <!-- ログ記録のビーンを宣言する。 -->
+    <bean id="aroundAdvice" class="jp.co.sec.disasterprevention.operationui.aopadvice.HijackAroundMethod"/>
+    
+    <bean id="aroundAdvisor" class="org.springframework.aop.support.NameMatchMethodPointcutAdvisor">
+        <property name="advice" ref="aroundAdvice" />
+        <property name="mappedNames" value="on*, exec* , update*, insert*, delete*" />
+    </bean>
+    
+    <!-- ビジネスを宣言する。 -->
+    <bean id="viewdAdvice" class="jp.co.sec.disasterprevention.operationui.aopadvice.ViewAroundMethod"/>
+    
+    <bean id="viewAdvisor" class="org.springframework.aop.support.NameMatchMethodPointcutAdvisor">
+        <property name="advice" ref="viewdAdvice" />
+        <property name="mappedNames" value="on*" />
+    </bean>
+    
+     <!-- View - CGLIBAutoProxy config  -->
+    <bean id="viewAutoProxy" class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator">
+        <property name="proxyTargetClass" value="true"/>
+        <property name="beanNames">
+            <value>*ViewImpl , *View</value>
+        </property>
+        <property name="interceptorNames">
+            <value>aroundAdvisor , viewAdvisor</value>
+        </property>
+    </bean>
+    
+    <!-- Controller - CGLIBAutoProxy config  -->
+    <bean id="controllerAutoProxy" class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator">
+        <property name="proxyTargetClass" value="true"/>
+        <property name="beanNames">
+            <value>*ControllerImpl</value>
+        </property>
+        <property name="interceptorNames">
+            <value>aroundAdvisor , transactionInterceptor</value>
+        </property>
+    </bean>
+
+    <!-- Service - CGLIBAutoProxy config -->
+    <bean id="serviceAutoProxy" class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator">
+        <property name="proxyTargetClass" value="true"/>
+        <property name="beanNames">
+            <value>*ServiceImpl</value>
+        </property>
+        <property name="interceptorNames">
+            <value>aroundAdvisor , transactionInterceptor</value>
+        </property>
+    </bean>
+    
+    <!-- Repository - CGLIBAutoProxy config -->
+    <bean id="repositotyAutoProxy" class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator">
+        <property name="proxyTargetClass" value="true"/>
+        <property name="beanNames">
+            <value>*Repository</value>
+        </property>
+        <property name="interceptorNames">
+            <value>aroundAdvisor</value>
+        </property>
+    </bean>
+    
+    <!-- トランザクションを宣言する。 -->
+    <bean id="transactionInterceptor"
+          class="org.springframework.transaction.interceptor.TransactionInterceptor">
+        <property name="transactionManager" ref="transactionManager"> </property>
+        <property name="transactionAttributeSource">
+             <ref bean="txAttribute"/>
+        </property>
+    </bean>
+    
+    <!-- トランザクションを使用するメソッドを初期化する。 -->
+    	<bean id="txAttribute"
+        class="org.springframework.transaction.interceptor.NameMatchTransactionAttributeSource">
+        <property name="properties">
+            <props>
+                <prop key="get*">PROPAGATION_REQUIRED, ISOLATION_SERIALIZABLE</prop>
+                <prop key="insert*">PROPAGATION_REQUIRED, ISOLATION_SERIALIZABLE</prop>
+                <prop key="update*">PROPAGATION_REQUIRED, ISOLATION_SERIALIZABLE</prop>
+                <prop key="delete*">PROPAGATION_REQUIRED, ISOLATION_SERIALIZABLE</prop>
+                <prop key="exec*">PROPAGATION_REQUIRED, ISOLATION_SERIALIZABLE</prop>
+                <prop key="removeById">PROPAGATION_REQUIRED, ISOLATION_SERIALIZABLE</prop>
+            </props>
+        </property>
+    </bean>
+    
+</beans>
